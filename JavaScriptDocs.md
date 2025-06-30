@@ -1,1 +1,404 @@
+# Frappe Form Functions Reference
 
+## Form Object Methods (frm.method_name)
+
+### Document Navigation
+```javascript
+// Switch to different document of same doctype
+frm.switch_doc("DOC-2024-001");
+
+// Example: Navigate to next document in sequence
+frappe.ui.form.on("Sales Order", {
+    refresh: function(frm) {
+        if (!frm.is_new()) {
+            frm.add_custom_button("Next Order", () => {
+                frappe.db.get_list("Sales Order", {
+                    filters: { creation: [">", frm.doc.creation] },
+                    limit: 1,
+                    order_by: "creation asc"
+                }).then(docs => {
+                    if (docs.length > 0) {
+                        frm.switch_doc(docs[0].name);
+                    }
+                });
+            });
+        }
+    }
+});
+```
+
+### Save Controls
+```javascript
+// Enable/disable save functionality
+frm.enable_save();                    // Allow saving
+frm.disable_save();                   // Prevent saving  
+frm.disable_save(true);               // Prevent saving but allow dirty state
+frm.disable_form();                   // Make entire form read-only
+```
+
+### Document Operations
+```javascript
+// Reload document from database
+frm.reload_doc();
+
+// Refresh specific field
+frm.refresh_field("field_name");
+
+// Example: Auto-refresh after async operation
+frappe.ui.form.on("Item", {
+    update_stock: function(frm) {
+        frappe.call({
+            method: "update_inventory",
+            args: { item_code: frm.doc.item_code },
+            callback: function() {
+                frm.reload_doc(); // Refresh entire form
+                frm.refresh_field("stock_qty"); // Or just specific field
+            }
+        });
+    }
+});
+```
+
+### Permission Checks
+```javascript
+// Check user permissions
+frm.has_perm("read");     // Can read document
+frm.has_perm("write");    // Can edit document  
+frm.has_perm("create");   // Can create new document
+frm.has_perm("delete");   // Can delete document
+frm.has_perm("submit");   // Can submit document
+
+// Example: Conditional button based on permissions
+frappe.ui.form.on("Purchase Order", {
+    refresh: function(frm) {
+        if (frm.has_perm("submit") && frm.doc.docstatus === 0) {
+            frm.add_custom_button("Quick Submit", () => {
+                frm.submit();
+            });
+        }
+    }
+});
+```
+
+### Document State
+```javascript
+// Check document state
+frm.is_dirty();          // Has unsaved changes
+frm.is_new();            // Is new document (not saved yet)
+frm.dirty();             // Mark document as dirty
+frm.get_docinfo();       // Get document metadata
+
+// Example: Warn before navigation if dirty
+frappe.ui.form.on("Customer", {
+    before_route: function(frm) {
+        if (frm.is_dirty()) {
+            frappe.msgprint("You have unsaved changes!");
+            return false; // Prevent navigation
+        }
+    }
+});
+```
+
+### Custom Buttons
+```javascript
+// Add custom buttons
+frm.add_custom_button("Button Label", function() {
+    // Button action
+}, "Button Group");
+
+// Remove buttons
+frm.clear_custom_buttons();           // Remove all custom buttons
+frm.remove_custom_button("Label");    // Remove specific button
+frm.remove_custom_button("Label", "Group"); // Remove from group
+
+// Example: Dynamic buttons based on status
+frappe.ui.form.on("Task", {
+    refresh: function(frm) {
+        frm.clear_custom_buttons();
+        
+        if (frm.doc.status === "Open") {
+            frm.add_custom_button("Start Work", () => {
+                frm.set_value("status", "Working");
+                frm.save();
+            }, "Actions");
+        }
+        
+        if (frm.doc.status === "Working") {
+            frm.add_custom_button("Complete", () => {
+                frm.set_value("status", "Completed");
+                frm.save();
+            }, "Actions");
+        }
+    }
+});
+```
+
+## Global Functions
+
+### Toast Messages
+```javascript
+// Show toast notifications
+frappe.toast({
+    message: "Operation completed successfully",
+    indicator: "green"        // green, red, yellow, blue
+});
+
+frappe.toast({
+    message: __("Document has unsaved changes.<br>Consider saving before printing."),
+    indicator: "yellow",
+    title: "Warning"          // Optional title
+});
+
+// Example: Success feedback after API call
+frappe.call({
+    method: "send_email",
+    args: { recipient: frm.doc.email },
+    callback: function(response) {
+        if (response.message.success) {
+            frappe.toast({
+                message: "Email sent successfully",
+                indicator: "green"
+            });
+        }
+    }
+});
+```
+
+### Navigation
+```javascript
+// Navigate to different routes
+frappe.set_route("List", "Customer");              // Go to list view
+frappe.set_route("Form", "Customer", "CUST-001");  // Go to specific form
+frappe.set_route("print", "Sales Order", "SO-001"); // Go to print view
+frappe.set_route("query-report", "Financial Statements"); // Go to report
+
+// Example: Navigate after form submission
+frappe.ui.form.on("Lead", {
+    after_save: function(frm) {
+        if (frm.doc.status === "Converted") {
+            frappe.set_route("Form", "Customer", frm.doc.customer);
+        }
+    }
+});
+```
+
+## Complete Example
+
+```javascript
+frappe.ui.form.on("Sales Invoice", {
+    refresh: function(frm) {
+        // Check permissions and add buttons
+        if (frm.has_perm("write") && !frm.is_new()) {
+            frm.add_custom_button("Send Email", () => {
+                send_invoice_email(frm);
+            }, "Actions");
+            
+            frm.add_custom_button("Print PDF", () => {
+                if (frm.is_dirty()) {
+                    frappe.toast({
+                        message: "Please save changes before printing",
+                        indicator: "yellow"
+                    });
+                    return;
+                }
+                frappe.set_route("print", frm.doctype, frm.doc.name);
+            }, "Actions");
+        }
+        
+        // Auto-refresh customer balance
+        if (frm.doc.customer) {
+            frm.refresh_field("outstanding_amount");
+        }
+    },
+    
+    customer: function(frm) {
+        // Mark form dirty when customer changes
+        frm.dirty();
+    }
+});
+
+function send_invoice_email(frm) {
+    frappe.call({
+        method: "send_invoice_by_email",
+        args: {
+            invoice_name: frm.doc.name,
+            recipient: frm.doc.customer_email
+        },
+        callback: function(response) {
+            if (response.message) {
+                frappe.toast({
+                    message: "Invoice emailed successfully",
+                    indicator: "green"
+                });
+                frm.reload_doc(); // Refresh to show email status
+            }
+        }
+    });
+}
+```
+
+# Frappe Breadcrumbs - Custom Navigation
+
+## Purpose
+Fix Frappe's breadcrumb navigation to remember the last workspace and maintain proper navigation flow.
+
+## Method 1: Per DocType (List/Form JS Files)
+
+### List View JS
+```javascript
+frappe.listview_settings["Your DocType"] = {
+  refresh: function (listview) {
+    const previous_route = frappe.get_prev_route();
+    let stored_workspace = localStorage.getItem("current_workspace") || "";
+    
+    if (previous_route && previous_route[0] === "Workspaces") {
+      stored_workspace = previous_route[1];
+      localStorage.setItem("current_workspace", stored_workspace);
+    }
+    
+    if (stored_workspace) {
+      frappe.breadcrumbs.clear();
+      frappe.breadcrumbs.all[frappe.get_route_str()] = {
+        workspace: stored_workspace,
+        doctype: listview.doctype,
+        type: "List",
+      };
+      frappe.breadcrumbs.update();
+    }
+  },
+};
+```
+
+### Form View JS
+```javascript
+frappe.ui.form.on("Your DocType", {
+  refresh: function(frm) {
+    const stored_workspace = localStorage.getItem("current_workspace");
+    
+    if (stored_workspace) {
+      frappe.breadcrumbs.clear();
+      frappe.breadcrumbs.all[frappe.get_route_str()] = {
+        workspace: stored_workspace,
+        doctype: frm.doctype,
+        type: "Form",
+      };
+      frappe.breadcrumbs.update();
+    }
+  },
+});
+```
+
+## Method 2: Global Override (App Hooks)
+
+### Global Breadcrumb Override
+```javascript
+
+(function() {
+    const original_method = frappe.breadcrumbs.update;
+    
+    frappe.breadcrumbs.update = function() {
+        const active_route = frappe.get_route();
+        const stored_workspace = localStorage.getItem("current_workspace");
+        
+        if (stored_workspace) {
+            // Handle Form view
+            if (active_route[0] === "Form") {
+                const doc_type = active_route[1];
+                const doc_name = active_route[2];
+                
+                this.clear();
+                
+                // Workspace > DocType List > Form
+                this.append_breadcrumb_element(
+                    `/app/${frappe.router.slug(stored_workspace)}`,
+                    __(stored_workspace)
+                );
+                
+                this.append_breadcrumb_element(
+                    `/app/${frappe.router.slug(doc_type)}`,
+                    __(doc_type)
+                );
+                
+                // Handle new vs existing documents
+                let document_title;
+                if (doc_name.startsWith("new-" + doc_type.toLowerCase().replace(/ /g, "-"))) {
+                    document_title = __("New {0}", [__(doc_type)]);
+                } else {
+                    document_title = __(doc_name);
+                }
+                
+                this.append_breadcrumb_element(
+                    `/app/${frappe.router.slug(doc_type)}/${encodeURIComponent(doc_name)}`,
+                    document_title
+                );
+                
+                // Make last breadcrumb copyable
+                let final_crumb = this.$breadcrumbs.find("li").last();
+                final_crumb.addClass("disabled").css("cursor", "copy");
+                final_crumb.click((event) => {
+                    event.stopImmediatePropagation();
+                    frappe.utils.copy_to_clipboard(final_crumb.text());
+                });
+                
+                this.toggle(true);
+                return;
+            } 
+            // Handle List view  
+            else if (active_route[0] === "List") {
+                const doc_type = active_route[1];
+                
+                this.clear();
+                
+                // Workspace > DocType List
+                this.append_breadcrumb_element(
+                    `/app/${frappe.router.slug(stored_workspace)}`,
+                    __(stored_workspace)
+                );
+                
+                this.append_breadcrumb_element(
+                    `/app/${frappe.router.slug(doc_type)}`,
+                    __(doc_type)
+                );
+                
+                this.toggle(true);
+                return;
+            }
+            else if (active_route[0] === "Workspaces") {
+                localStorage.setItem("current_workspace", active_route[1]);
+            }
+        }
+        
+        // Fall-back
+        original_method.call(this);
+    };
+})();
+```
+
+### Add to App Hooks
+```python
+# In hooks.py
+app_include_js = [
+    "assets/js/navigation_breadcrumbs.js"
+]
+```
+
+## What This Does
+
+**Problem:** Frappe's default breadcrumbs lose workspace context when navigating between forms and lists.
+
+**Solution:** 
+- Tracks the last visited workspace in localStorage
+- Rebuilds breadcrumbs: `Workspace > DocType List > Form`
+- Works for both individual DocTypes and globally
+
+**Navigation Flow:**
+```
+Workspace → List View → Form View
+    ↑         ↑          ↑
+  Tracked   Shows WS   Shows WS > List
+```
+
+**Bonus Features:**
+- Click last breadcrumb to copy document name
+- Handles "New Document" vs existing documents
+- Maintains proper navigation hierarchy
