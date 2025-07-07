@@ -1,7 +1,5 @@
 # Frappe Form Functions Reference
 
-## Form Object Methods (frm.method_name)
-
 ### Document Navigation
 ```javascript
 // Switch to different document of same doctype
@@ -132,6 +130,88 @@ frappe.ui.form.on("Task", {
     }
 });
 ```
+
+### Visual Indicators
+
+```javascript
+frm.set_indicator_formatter("target_field", (item) => (item.condition ? "success_color" : "warning_color"));
+```
+
+**Purpose**: Display visual status indicators in child table rows
+
+**Pattern**: `field_name → condition_check → color_result`
+
+**Logic**: Evaluates row data and returns appropriate status color
+
+---
+
+### Dynamic ChildTable Field Filtering
+
+```javascript
+frm.fields_dict.child_table.grid.get_field("dropdown_field").get_query = function (doc, cdt, cdn) {
+    var current_row = locals[cdt][cdn];
+    return {
+        filters: {
+            criteria_field: current_row.reference_value,
+        },
+    };
+};
+```
+
+**Purpose**: Filter dropdown options based on row context
+
+**Pattern**: `child_table → target_field → filter_criteria → filtered_options`
+
+**Logic**: Uses current row values to dynamically filter available options
+
+---
+
+### User Tracking
+
+```javascript
+frm.get_involved_users()
+```
+
+**Purpose**: Retrieve document interaction history
+
+**Pattern**: `document → user_interactions → user_list`
+
+**Logic**: Returns collection of users with document involvement
+
+---
+
+### Navigation Control
+
+```javascript
+frm.scroll_to_field("target_field");
+```
+
+**Purpose**: Programmatic viewport navigation
+
+**Pattern**: `field_identifier → scroll_action → field_visibility`
+
+**Logic**: Moves viewport to bring specified field into view
+
+---
+
+### Keyboard Shortcuts
+
+```javascript
+frappe.ui.keys.add_shortcut({
+    shortcut: "key_combination",
+    action: () => custom_function(),
+    page: frm.page,
+    description: __("Action Description"),
+    ignore_inputs: boolean,
+    condition: () => validation_check(),
+});
+```
+
+**Purpose**: Register custom keyboard interactions
+
+**Pattern**: `key_combo → condition_check → action_execution`
+
+**Logic**: Binds keyboard events to custom functions with optional conditions
 
 ## Global Functions
 
