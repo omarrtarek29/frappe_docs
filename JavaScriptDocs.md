@@ -675,6 +675,11 @@ frappe.ui.form.on("Your DocType", {
                 localStorage.setItem("current_workspace", active_route[1]);
             }
         }
+        else {
+            if (active_route[0] === "Workspaces") {
+                localStorage.setItem("current_workspace", active_route[1]);
+            }
+        }
         
         // Fall-back
         original_method.call(this);
@@ -705,8 +710,3 @@ Workspace → List View → Form View
     ↑         ↑          ↑
   Tracked   Shows WS   Shows WS > List
 ```
-
-**Bonus Features:**
-- Click last breadcrumb to copy document name
-- Handles "New Document" vs existing documents
-- Maintains proper navigation hierarchy
