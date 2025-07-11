@@ -14,7 +14,8 @@ frappe.listview_settings['DocType Name'] = {
 ```javascript
 {
     can_create: false,              // Hide create button
-    hide_name_column: true,         // Hide ID column
+    hide_name_column: true,         // Hide ID column (only works if Doctype has a title field set in Doctype Settings)
+    hide_name_filter: true,         // Hide name filter
     add_fields: ['field1', 'field2'], // Fetch additional fields
 }
 ```
